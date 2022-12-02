@@ -152,7 +152,7 @@ class Home extends BaseController
 
     public function getAllTreeCategories()
     {
-        $this->appendHeader();
+        $this->_secure();
         $mdl = new TreeCategiriesModel();
         $result = $mdl->select("title as text, id as value, days-to-harvest as days")
             ->get()->getResultArray();
