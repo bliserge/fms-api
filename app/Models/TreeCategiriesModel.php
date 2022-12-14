@@ -5,7 +5,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 class TreeCategiriesModel extends Model {
-    protected $table = 'tree-categiries';
+    protected $table = 'tree-categories';
 
     protected $primaryKey = 'id';
 

@@ -61,7 +61,7 @@ class Home extends BaseController
         $auth = $token == null ? apache_request_headers()["Authorization"] : 'Bearer ' . $token;
         //        $auth = $this->request->getHeader("Authorization");
         if ($auth == null || strlen($auth) < 5) {
-            $this->response->setStatusCode(401)->setJSON(array("error" => lang('accessDenied'), "message" => lang('notHavePermissionAccessResource')))->send();
+            $this->response->setStatusCode(401)->setJSON(array("error" => lang('accessDenied'), "message" => "you are not authorized here"))->send();
             exit();
         } else {
             try {
@@ -122,6 +122,7 @@ class Home extends BaseController
                         'phone' => $result->phone,
                         'name' => $result->fullname,
                         'type' => $result->userType,
+                        'location' => $result->location,
                         'accessToken' => $token,
                     );
 
@@ -147,12 +148,12 @@ class Home extends BaseController
 
     public function index(): ResponseInterface
     {
-        return $this->response->setJSON(['status' => 'SUCCESS', 'message' => "API is configured successfully\nDate: " . date('Y-m-d H:i:s')]);
+        return $this->response->setJSON(['status' => 'SUCCESS', 'message' => "API is configured well and successfully\nDate: " . date('Y-m-d H:i:s')]);
     }
 
     public function getAllTreeCategories()
     {
-        $this->_secure();
+        $this->appendHeader();
         $mdl = new TreeCategiriesModel();
         $result = $mdl->select("title as text, id as value, days-to-harvest as days")
             ->get()->getResultArray();
@@ -207,36 +208,224 @@ class Home extends BaseController
     {
         $this->appendHeader();
         $mdl = new LocationModel();
-        $resultBuilder = $mdl->select("name as text, id as value");
-        if($province != null) {
+        $resultBuilder = $mdl->select("name as text, id as value")
+            ->where("location_type", "DISTRICT");
+        if ($province != null) {
             $resultBuilder->where('parent_id', $province);
         }
         $result = $resultBuilder->get()->getResultArray();
         return $this->response->setJSON(["data" => $result]);
     }
 
-    public function getSector($district = null )
+    public function getSector($district = null)
     {
         $this->appendHeader();
         $mdl = new LocationModel();
-        $resultBuilder = $mdl->select("name as text, id as value");
-        if($district != null) {
+        $resultBuilder = $mdl->select("name as text, id as value")
+            ->where("location_type", "SECTOR");
+        if ($district != null) {
             $resultBuilder->where('parent_id', $district);
         }
         $result = $resultBuilder->get()->getResultArray();
         return $this->response->setJSON(["data" => $result]);
     }
 
-    public function getCells($sector = null) 
+    public function getCells($sector = null)
     {
         $this->appendHeader();
         $mdl = new LocationModel();
-        $resultBuilder = $mdl->select("name as text, id as value");
-        if($sector != null) {
+        $resultBuilder = $mdl->select("name as text, id as value")
+            ->where("location_type", "CELL");
+        if ($sector != null) {
             $resultBuilder->where('parent_id', $sector);
         }
         $result = $resultBuilder->get()->getResultArray();
         return $this->response->setJSON(["data" => $result]);
     }
 
+    public function getvillages($cell = null)
+    {
+        $this->appendHeader();
+        $mdl = new LocationModel();
+        $resultBuilder = $mdl->select("name as text, id as value")
+            ->where("location_type", "VILLAGE");
+        if ($cell != null) {
+            $resultBuilder->where('parent_id', $cell);
+        }
+        $result = $resultBuilder->get()->getResultArray();
+        return $this->response->setJSON(["data" => $result]);
+    }
+
+    public function addUser()
+    {
+        $this->appendHeader();
+        $mdl = new UsersModel();
+        $input = json_decode(file_get_contents("php://input"));
+        $password = 'abcdef';
+        try {
+            $mdl->save([
+                "fullname" => $input->name,
+                "phone" => $input->phone,
+                "password" => password_hash($password, PASSWORD_DEFAULT),
+                "userType" => 2,
+                "location" => $input->location
+            ]);
+            return $this->response->setJSON(["message" => "registered successfully!"]);
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => $e->getMessage() . " - " . $e->getLine(), "input" => $input]);
+        }
+    }
+
+    public function getUsers()
+    {
+        $this->appendHeader();
+        $mdl = new UsersModel();
+        $result = $mdl->select("users.fullname,users.phone,sct.name as sector,dct.name as district,prc.name as province")
+            ->join("location sct", "sct.id = users.location")
+            ->join("location dct", "dct.id = sct.parent_id")
+            ->join("location prc", "prc.id = dct.parent_id")
+            ->where("userType", 2)
+            ->get()->getResultArray();
+        return $this->response->setJSON($result);
+    }
+
+    public function saveForest()
+    {
+        $this->appendHeader();
+        $mdl = new PlotsModel();
+
+        try {
+            $target_dir = "./public/assets/uploads/";
+
+            // var_dump($this->request->getPost("area")); die();
+            $pdfFiles = $_FILES['pdfFiles']['name'];
+            $path = pathinfo($pdfFiles);
+            $pdfFilesname = $path['filename'];
+            $extPdf = $path['extension'];
+            $path_pdfFilesname_ext = $target_dir . time() . $pdfFilesname . "." . $extPdf;
+
+
+            $imgFiles = $_FILES['imgFiles']['name'];
+            $path = pathinfo($imgFiles);
+            $imgFilesname = $path['filename'];
+            $extmg = $path['extension'];
+            $path_imgFilesname_ext = $target_dir . time() .$imgFilesname . "." . $extmg;
+
+            $mdl->save([
+                "ownerId" => $this->request->getPost("uid"),
+                "area" => $this->request->getPost("area"),
+                "province" => $this->request->getPost("province"),
+                "district" => $this->request->getPost("district"),
+                "sector" => $this->request->getPost("sector"),
+                "cell" => $this->request->getPost("cell"),
+                "village" => $this->request->getPost("village"),
+                "permission" => $path_pdfFilesname_ext,
+                "upi" => $this->request->getPost("upi"),
+                "upi_image" => $path_imgFilesname_ext,
+            ]);
+
+            move_uploaded_file($_FILES['pdfFiles']['tmp_name'], $path_imgFilesname_ext);
+            move_uploaded_file($_FILES['imgFiles']['tmp_name'], $path_pdfFilesname_ext);
+            return $this->response->setJSON(["message" => "Forest registered"]);
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => $e->getMessage()]);
+        }
+    }
+
+    public function getForests($id = null)
+    {
+        $this->appendHeader();
+        $mdl = new PlotsModel();
+        $sector = $this->request->getGet("sector");
+        $resultBuilder = $mdl->select("plots.id as value,u.fullname as names,upi as text,area,l.name as sector")
+                                ->join("users u", "u.id = plots.ownerId")
+                                ->join("location l", "l.id = plots.sector");
+        if($id != null) {
+            $resultBuilder->where("plots.ownerId", $id);
+        }
+        if(!empty($sector)) {
+            $resultBuilder->where("plots.sector", $sector);
+        }
+        $result = $resultBuilder->get()->getResultArray();
+        return $this->response->setJSON($result);
+    }
+    
+    public function saveRequest()
+    {
+        $this->appendHeader();
+        $mdl = new RequestsModel();
+
+        $input = json_decode(file_get_Contents("php://input"));
+        try {
+            $mdl->save([
+                "ownerId" => $input->owner,
+                "category" => $input->trc,
+                "forest" => $input->forest,
+                "quantity" => $input->qty,
+            ]);
+        return $this->response->setJSON(["message" => "Request Saved"]);
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Request not Saved! try again later"]);
+        }
+    }
+
+    public function savePlantation()
+    {
+        $this->appendHeader();
+        $mdl = new PlantationsModel();
+
+        $input = json_decode(file_get_Contents("php://input"));
+        try {
+            $mdl->save([
+                "ownerId" => $input->owner,
+                "plot_id" => $input->forest,
+                "num_tress" => $input->qty,
+                "treeType" => $input->trc,
+                "status" => 1
+            ]);
+        return $this->response->setJSON(["message" => "plantation Saved"]);
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Request not Saved! try again later"]);
+        }
+    }
+
+    public function getAllRequest($id = null)
+    {
+        $this->appendHeader();
+        $mdl = new RequestsModel();
+        $sector = $this->request->getGet("sector");
+        $resultBuilder = $mdl->select("u.fullname as name, u.phone,s.name as sector,d.name as district,p.upi, quantity, requests.status")
+                                ->join("users u", "u.id = plots.ownerId")
+                                ->join("plots p" , "p.id = requests.forest")
+                                ->join("location s", "s.id = p.sector")
+                                ->join("location d", "d.id = p.district");
+        if($id != null) {
+            $resultBuilder->where("requests.ownerId", $id);
+        }
+        if(!empty($sector)) {
+            $resultBuilder->where("s.id", $sector);
+        }
+        $result = $resultBuilder->get()->getResultArray();
+        return $this->response->setJSON($result);
+    }
+
+    public function getAllPlatations($id = null)
+    {
+        $this->appendHeader();
+        $mdl = new PlantationsModel();
+        $sector = $this->request->getGet("sector");
+        $resultBuilder = $mdl->select("u.fullname as name, u.phone,s.name as sector,d.name as district,p.upi, num_trees as trees, DATE(plantation_date) as date")
+                                ->join("users u", "u.id = plantations.ownerId")
+                                ->join("plots p" , "p.id = plantations.plot_id")
+                                ->join("location s", "s.id = p.sector")
+                                ->join("location d", "d.id = p.district");
+        if($id != null) {
+            $resultBuilder->where("plantations.ownerId", $id);
+        }
+        if(!empty($sector)) {
+            $resultBuilder->where("s.id", $sector);
+        }
+        $result = $resultBuilder->get()->getResultArray();
+        return $this->response->setJSON($result);
+    }
 }

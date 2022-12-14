@@ -9,7 +9,7 @@ class PlotsModel extends Model {
 
     protected $primaryKey = 'id';
 
-    protected $allowedFields = ['id', 'ownerId', 'ownerCategory', 'area', 'location', 'permission', 'upi', 'upi_image'];
+    protected $allowedFields = ['id', 'ownerId', 'area', 'province', 'district', 'sector', 'cell', 'village', 'permission', 'upi', 'upi_image'];
     protected $useTimestamps = true;
 	protected $createdField  = 'created_at';
 	protected $updatedField  = 'updated_at';
