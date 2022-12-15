@@ -155,7 +155,7 @@ class Home extends BaseController
     {
         $this->appendHeader();
         $mdl = new TreeCategiriesModel();
-        $result = $mdl->select("title as text, id as value, days-to-harvest as days")
+        $result = $mdl->select("title as text, id as value, days_to_harvest as days")
             ->get()->getResultArray();
         return $this->response->setJSON(["data" => $result]);
     }
@@ -168,7 +168,7 @@ class Home extends BaseController
         try {
             $mdl->save([
                 "title" => $input->title,
-                "days-to-harvest" => $input->days
+                "days_to_harvest" => $input->days
             ]);
             return $this->response->setStatusCode(200)->setJSON(["message" => "Category saved!"]);
         } catch (\Exception $e) {
@@ -354,8 +354,30 @@ class Home extends BaseController
     {
         $this->appendHeader();
         $mdl = new RequestsModel();
-
+        $plMdl = new PlantationsModel();
         $input = json_decode(file_get_Contents("php://input"));
+        if(empty($input->qty) || $input->qty <= 0) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Check quantity of trees to harvest and try again"]);
+        }
+        if(empty($input->trc)) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Trees category is required"]);
+        }
+        $today = date('Y-m-d');
+        $inPlantation = $plMdl->select("coalesce(SUM(num_trees),0) as trees")
+                        ->where("plot_id", $input->forest)
+                        ->where("treeType", $input->trc)
+                        ->where("harvest_date <=", $today)
+                        ->first();
+
+        $inRequest = $mdl->select("coalesce(SUM(quantity),0) as trees")
+                        ->where("forest", $input->forest)
+                        ->where("category", $input->trc)
+                        ->where("status", 1)
+                        ->first();
+        $remain = $inPlantation['trees'] - $inRequest['trees'];
+        if($remain > 0 && $input->qty > $remain) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "you don't have that much trees of this kind in forest"]);
+        }
         try {
             $mdl->save([
                 "ownerId" => $input->owner,
@@ -373,14 +395,24 @@ class Home extends BaseController
     {
         $this->appendHeader();
         $mdl = new PlantationsModel();
-
+        $trcMdl = new TreeCategiriesModel();
         $input = json_decode(file_get_Contents("php://input"));
+        if(empty($input->qty)) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Check quantity of trees planted and try again"]);
+        }
+        if(empty($input->trc)) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Trees category is required"]);
+        }
+        $days = $trcMdl->select("days_to_harvest as num")->where("id", $input->trc)->first();
+        $now = time();
+        $harvestStamp = $now + (86400 * $days['num']);
         try {
             $mdl->save([
                 "ownerId" => $input->owner,
                 "plot_id" => $input->forest,
-                "num_tress" => $input->qty,
+                "num_trees" => $input->qty,
                 "treeType" => $input->trc,
+                "harvest_date" => date('Y-m-d', $harvestStamp),
                 "status" => 1
             ]);
         return $this->response->setJSON(["message" => "plantation Saved"]);
@@ -395,7 +427,7 @@ class Home extends BaseController
         $mdl = new RequestsModel();
         $sector = $this->request->getGet("sector");
         $resultBuilder = $mdl->select("u.fullname as name, u.phone,s.name as sector,d.name as district,p.upi, quantity, requests.status")
-                                ->join("users u", "u.id = plots.ownerId")
+                                ->join("users u", "u.id = requests.ownerId")
                                 ->join("plots p" , "p.id = requests.forest")
                                 ->join("location s", "s.id = p.sector")
                                 ->join("location d", "d.id = p.district");
@@ -427,5 +459,10 @@ class Home extends BaseController
         }
         $result = $resultBuilder->get()->getResultArray();
         return $this->response->setJSON($result);
+    }
+
+    public function approveRequest()
+    {
+
     }
 }

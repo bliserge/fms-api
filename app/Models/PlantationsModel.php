@@ -9,7 +9,7 @@ class PlantationsModel extends Model {
 
     protected $primaryKey = 'id';
 
-    protected $allowedFields = ['id', 'ownerId', 'plot_id', 'num_trees', 'treeType', 'plantation-date', 'harvest-date', 'status'];
+    protected $allowedFields = ['id', 'ownerId', 'plot_id', 'num_trees', 'treeType', 'plantation_date', 'harvest_date', 'status'];
     protected $useTimestamps = true;
 	protected $createdField  = 'created_at';
 	protected $updatedField  = 'updated_at';

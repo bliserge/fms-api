@@ -9,7 +9,7 @@ class RequestsModel extends Model {
 
     protected $primaryKey = 'id';
 
-    protected $allowedFields = ['id', 'ownerId','category', 'forest', 'quantity', 'status'];
+    protected $allowedFields = ['id', 'ownerId','category', 'forest', 'quantity', 'status','comment'];
     protected $useTimestamps = true;
 	protected $createdField  = 'created_at';
 	protected $updatedField  = 'updated_at';

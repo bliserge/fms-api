@@ -9,7 +9,7 @@ class TreeCategiriesModel extends Model {
 
     protected $primaryKey = 'id';
 
-    protected $allowedFields = ['id', 'title', 'days-to-harvest'];
+    protected $allowedFields = ['id', 'title', 'days_to_harvest'];
     protected $useTimestamps = false;
 }
 
