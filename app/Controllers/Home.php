@@ -129,7 +129,7 @@ class Home extends BaseController
                     if ($this->redis->set($token, json_encode($payload), SESSION_EXPIRATION_TIME)) {
                         //set active token to prevent multiple login
                         $this->redis->set("user_" . $result->id . '_active_token', $token);
-                        $data["redirect"] = $result->userType == 4 ? 'citizen/home' : 'admin/home';
+                        $data["redirect"] = $result->userType == 4 ? 'citizen/home' : ($result->userType == 1 ? 'admin/home' : 'PO/home');
                         return $this->response->setStatusCode(200)->setJSON($data);
                     } else {
                         return $this->response->setStatusCode(500)->setJSON(array("error" => lang('systemError'), "message" => lang('app.haveIssueEnd')));
@@ -426,11 +426,12 @@ class Home extends BaseController
         $this->appendHeader();
         $mdl = new RequestsModel();
         $sector = $this->request->getGet("sector");
-        $resultBuilder = $mdl->select("u.fullname as name, u.phone,s.name as sector,d.name as district,p.upi, quantity, requests.status")
+        $resultBuilder = $mdl->select("DATE(requests.created_at) as date,requests.id,u.fullname as name, u.phone,s.name as sector,d.name as district,p.upi, quantity, if(requests.status = 0,'PENDING',if(requests.status = 1,'APPROVED','DENIED')) as status, requests.status as stCode")
                                 ->join("users u", "u.id = requests.ownerId")
                                 ->join("plots p" , "p.id = requests.forest")
                                 ->join("location s", "s.id = p.sector")
-                                ->join("location d", "d.id = p.district");
+                                ->join("location d", "d.id = p.district")
+                                ->orderBy("requests.status");
         if($id != null) {
             $resultBuilder->where("requests.ownerId", $id);
         }
@@ -447,10 +448,10 @@ class Home extends BaseController
         $mdl = new PlantationsModel();
         $sector = $this->request->getGet("sector");
         $resultBuilder = $mdl->select("u.fullname as name, u.phone,s.name as sector,d.name as district,p.upi, num_trees as trees, DATE(plantation_date) as date")
-                                ->join("users u", "u.id = plantations.ownerId")
-                                ->join("plots p" , "p.id = plantations.plot_id")
-                                ->join("location s", "s.id = p.sector")
-                                ->join("location d", "d.id = p.district");
+                                ->join("users u", "u.id = plantations.ownerId", "LEFT")
+                                ->join("plots p" , "p.id = plantations.plot_id", "LEFT")
+                                ->join("location s", "s.id = p.sector", "LEFT")
+                                ->join("location d", "d.id = p.district", "LEFT");
         if($id != null) {
             $resultBuilder->where("plantations.ownerId", $id);
         }
@@ -463,6 +464,18 @@ class Home extends BaseController
 
     public function approveRequest()
     {
-
+        $this->appendHeader();
+        $mdl = new RequestsModel();
+        $input = json_decode(file_get_contents("php://input"));
+        try {
+            $mdl->save([
+                "id" => $input->id,
+                "status" => $input->status
+            ]);
+            return $this->response->setJSON(["message" => "Request status Changed successfully"]);
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => $e->getMessage()]);
+        }
+        
     }
 }
