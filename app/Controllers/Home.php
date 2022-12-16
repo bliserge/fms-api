@@ -180,6 +180,16 @@ class Home extends BaseController
         $this->appendHeader();
         $mdl = new UsersModel();
         $input = json_decode(file_get_contents("php://input"));
+        $check = $mdl->where("phone", $input->phone)->get()->getResultArray();
+        if(!Empty($check)) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Phone number is already registered"]);
+        }
+        if(empty($input->phone) || strlen($input->phone) != 10) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Phone number is required and must be 10 digits"]);
+        }
+        if(empty($input->id) || strlen($input->id) != 16) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "Your ID number is required and must be 10 digits"]);
+        }
         try {
             $mdl->save([
                 "fullname" => $input->name,
